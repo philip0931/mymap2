@@ -1,0 +1,735 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>우리 동네 교육 인프라 탐색기</title>
+  <style>
+    /* 기본 스타일 초기화 */
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Malgun Gothic', '맑은 고딕', sans-serif;
+      display: flex; /* 화면을 왼쪽과 오른쪽으로 2분할하기 위해 flex 사용 */
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    /* 1. 왼쪽 영역 (검색창 + 탭 + 결과 리스트) */
+    #left-panel {
+      width: 380px;
+      height: 100%;
+      background-color: #f8f9fa;
+      border-right: 1px solid #ddd;
+      display: flex;
+      flex-direction: column;
+      z-index: 10;
+    }
+
+    /* 상단 헤더 및 컨트롤 영역 */
+    .panel-header {
+      padding: 15px;
+      background-color: #ffffff;
+      border-bottom: 1px solid #ddd;
+    }
+
+    .panel-header h1 {
+      font-size: 18px;
+      color: #333;
+      margin-bottom: 12px;
+    }
+
+    /* 검색창 스타일 */
+    .search-box {
+      display: flex;
+      gap: 5px;
+      margin-bottom: 10px;
+    }
+
+    .search-box input {
+      flex: 1;
+      padding: 8px 10px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      font-size: 14px;
+    }
+
+    .search-box button {
+      padding: 8px 12px;
+      background-color: #333;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 14px;
+    }
+
+    /* 위치 제어 버튼 영역 (현재 위치 / 위치 지정 모드) */
+    .mode-buttons {
+      display: flex;
+      gap: 6px;
+      margin-bottom: 10px;
+    }
+
+    .mode-buttons button {
+      flex: 1;
+      padding: 8px;
+      border: 1px solid #007bff;
+      background-color: #fff;
+      color: #007bff;
+      border-radius: 4px;
+      cursor: pointer;
+      font-weight: bold;
+      font-size: 13px;
+      transition: 0.2s;
+    }
+
+    .mode-buttons button.active {
+      background-color: #007bff;
+      color: #fff;
+    }
+
+    /* 현재 탐색 상태 및 반경 안내 박스 */
+    .status-bar {
+      background-color: #e9ecef;
+      padding: 8px 10px;
+      border-radius: 4px;
+      font-size: 12px;
+      color: #495057;
+      line-height: 1.5;
+    }
+
+    /* 마커 색상 범례 (Legend) */
+    .legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      padding: 10px 15px;
+      background: #fff;
+      border-bottom: 1px solid #ddd;
+      font-size: 12px;
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .color-dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      display: inline-block;
+    }
+
+    /* 제도권 교육(공교육/유치원) vs 사교육(학원) 분리 탭 */
+    .category-tabs {
+      display: flex;
+      background-color: #fff;
+      border-bottom: 2px solid #dee2e6;
+    }
+
+    .tab-btn {
+      flex: 1;
+      padding: 12px 5px;
+      border: none;
+      background: none;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: bold;
+      color: #868e96;
+      border-bottom: 3px solid transparent;
+    }
+
+    .tab-btn.active {
+      color: #2b8a3e;
+      border-bottom-color: #2b8a3e;
+    }
+
+    .count-badge {
+      background-color: #eee;
+      padding: 2px 6px;
+      border-radius: 10px;
+      font-size: 12px;
+      margin-left: 4px;
+    }
+
+    /* 검색 결과 리스트 영역 */
+    #result-list {
+      flex: 1;
+      overflow-y: auto;
+      padding: 10px 15px;
+      list-style: none;
+    }
+
+    .place-item {
+      background: #fff;
+      padding: 12px;
+      border: 1px solid #e9ecef;
+      border-radius: 6px;
+      margin-bottom: 8px;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+
+    .place-item:hover {
+      background-color: #f1f3f5;
+    }
+
+    .place-title {
+      font-size: 15px;
+      font-weight: bold;
+      margin-bottom: 4px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .place-badge {
+      font-size: 11px;
+      padding: 2px 6px;
+      border-radius: 4px;
+      color: #fff;
+      font-weight: normal;
+    }
+
+    .place-address {
+      font-size: 12px;
+      color: #666;
+      margin-bottom: 2px;
+    }
+
+    .place-distance {
+      font-size: 12px;
+      color: #007bff;
+      font-weight: bold;
+    }
+
+    /* 2. 오른쪽 영역 (지도) */
+    #right-panel {
+      flex: 1;
+      position: relative;
+      height: 100%;
+    }
+
+    #map {
+      width: 100%;
+      height: 100%;
+    }
+
+    /* 지도 위 확대/축소(+/-) 컨트롤 버튼 */
+    .zoom-control {
+      position: absolute;
+      top: 20px;
+      right: 20px;
+      z-index: 20;
+      display: flex;
+      flex-direction: column;
+      background: #fff;
+      border: 1px solid #999;
+      border-radius: 4px;
+      overflow: hidden;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+    }
+
+    .zoom-control button {
+      width: 38px;
+      height: 38px;
+      border: none;
+      background: #fff;
+      font-size: 20px;
+      font-weight: bold;
+      cursor: pointer;
+      color: #333;
+    }
+
+    .zoom-control button:first-child {
+      border-bottom: 1px solid #ddd;
+    }
+
+    .zoom-control button:hover {
+      background: #f1f3f5;
+    }
+  </style>
+
+  <!-- 카카오맵 SDK 불러오기: autoload=false를 넣어서 지도가 완전히 로드된 후 안전하게 실행되도록 설정 -->
+  <script type="text/javascript" src="https://dapi.kakao.com/v2/maps/sdk.js?appkey=5006ab42f83cfb03852191a3a35e0a9e&libraries=services&autoload=false"></script>
+</head>
+<body>
+
+  <!-- 왼쪽 영역: 검색창 + 탭 + 결과 리스트 -->
+  <div id="left-panel">
+    <div class="panel-header">
+      <h1>🏫 교육 인프라 탐색기</h1>
+      
+      <!-- 장소 이동용 검색창 -->
+      <div class="search-box">
+        <input type="text" id="keyword-input" placeholder="지역이나 장소 검색 (예: 대치동, 강남역)">
+        <button id="search-btn">이동</button>
+      </div>
+
+      <!-- 내 위치 vs 지정 위치 탐색 버튼 -->
+      <div class="mode-buttons">
+        <button id="current-loc-btn" class="active">📍 내 위치 주변 파악</button>
+        <button id="pick-loc-btn">🎯 위치 지정하기</button>
+      </div>
+
+      <!-- 현재 지도 레벨 및 탐색 반경 표시 -->
+      <div class="status-bar" id="status-bar">
+        지도 로딩 중...
+      </div>
+    </div>
+
+    <!-- 학교 종류별 마커 색상 안내 -->
+    <div class="legend">
+      <div class="legend-item"><span class="color-dot" style="background:#FFB800;"></span>어린이집/유치원</div>
+      <div class="legend-item"><span class="color-dot" style="background:#2ECC71;"></span>초등학교</div>
+      <div class="legend-item"><span class="color-dot" style="background:#3498DB;"></span>중학교</div>
+      <div class="legend-item"><span class="color-dot" style="background:#9B59B6;"></span>고등학교</div>
+      <div class="legend-item"><span class="color-dot" style="background:#E74C3C;"></span>학원(사교육)</div>
+    </div>
+
+    <!-- 분류 체계 탭 (제도권 교육기관 vs 사교육 기관 분리) -->
+    <div class="category-tabs">
+      <button class="tab-btn active" id="tab-public" onclick="switchTab('PUBLIC')">
+        제도권 교육기관 <span class="count-badge" id="public-count">0</span>
+      </button>
+      <button class="tab-btn" id="tab-private" onclick="switchTab('PRIVATE')">
+        사교육 기관(학원) <span class="count-badge" id="private-count">0</span>
+      </button>
+    </div>
+
+    <!-- 결과 리스트가 출력될 공간 -->
+    <ul id="result-list"></ul>
+  </div>
+
+  <!-- 오른쪽 영역: 지도 및 확대/축소 버튼 -->
+  <div id="right-panel">
+    <div id="map"></div>
+    <div class="zoom-control">
+      <button id="zoom-in-btn" title="확대 (레벨 -1)">+</button>
+      <button id="zoom-out-btn" title="축소 (레벨 +1)">-</button>
+    </div>
+  </div>
+
+  <script>
+    // 전역 변수 선언 (변수명은 영어로 작성)
+    let map = null;                  // 카카오 지도 객체
+    let placesService = null;        // 장소 검색 서비스 객체
+    let infoWindow = null;           // 마커 클릭 시 보여줄 인포윈도우
+    let radiusCircle = null;         // 탐색 반경을 시각적으로 보여줄 원(Circle)
+    let centerMarker = null;         // 기준 위치(내 위치 또는 지정 위치) 마커
+
+    let currentCenter = null;        // 현재 탐색 기준이 되는 중심 좌표
+    let isPickingMode = false;       // '위치 지정하기' 버튼 활성화 여부
+    let activeTab = 'PUBLIC';        // 현재 선택된 탭 ('PUBLIC': 제도권 교육, 'PRIVATE': 사교육)
+
+    let publicEduList = [];          // 검색된 제도권 교육기관(PS3, SC4) 데이터 배열
+    let privateEduList = [];         // 검색된 사교육 기관(AC5) 데이터 배열
+    let activeMarkers = [];          // 현재 지도에 표시된 교육기관 마커 배열
+
+    // 1. 페이지 및 카카오맵 SDK가 모두 로드된 후 실행 (로딩 오류 방지)
+    window.addEventListener('DOMContentLoaded', function () {
+      kakao.maps.load(function () {
+        initMap();
+      });
+    });
+
+    // 2. 지도 초기화 함수
+    function initMap() {
+      const mapContainer = document.getElementById('map');
+      // 기본 중심 좌표 (위치 권한을 허용하기 전이나 거부했을 때 보여줄 서울시청 좌표)
+      const defaultCenter = new kakao.maps.LatLng(37.566826, 126.9786567);
+
+      const mapOptions = {
+        center: defaultCenter,
+        level: 5 // 조건: 지도 확대 레벨 기본값은 5
+      };
+
+      // 지도 생성 및 서비스 객체 초기화
+      map = new kakao.maps.Map(mapContainer, mapOptions);
+      placesService = new kakao.maps.services.Places();
+      infoWindow = new kakao.maps.InfoWindow({ zIndex: 1 });
+      currentCenter = defaultCenter;
+
+      // 이벤트 리스너 등록
+      setupEventListeners();
+
+      // 페이지가 열리면 위치 권한을 허용 받아 현재 위치를 중심으로 표시
+      moveToCurrentLocation();
+    }
+
+    // 3. 지도 레벨별 탐색 반경(m) 계산 함수 (요구사항의 레벨별 반경 조건 적용)
+    function getRadiusByLevel(level) {
+      const radiusTable = {
+        0: 10,
+        1: 20,
+        2: 30,
+        3: 50,
+        4: 100,
+        5: 250,
+        6: 500,
+        7: 1000
+      };
+      // 8레벨 이상은 모두 2km(2000m)로 처리
+      if (level >= 8) {
+        return 2000;
+      }
+      return radiusTable[level] || 250;
+    }
+
+    // 4. 학교 이름과 카테고리 코드를 읽어서 마커 색상과 분류 이름을 결정하는 함수
+    function getEduTypeInfo(place) {
+      const code = place.category_group_code;
+      const name = place.place_name;
+
+      if (code === 'PS3') {
+        return { label: '어린이집/유치원', color: '#FFB800' }; // 노란색/주황색
+      }
+      if (code === 'SC4') {
+        // 이름에 초등학교, 중학교, 고등학교 중 무엇이 있는지 읽어서 구별
+        if (name.includes('초등학교')) {
+          return { label: '초등학교', color: '#2ECC71' }; // 초록색
+        } else if (name.includes('중학교')) {
+          return { label: '중학교', color: '#3498DB' };   // 파란색
+        } else if (name.includes('고등학교')) {
+          return { label: '고등학교', color: '#9B59B6' }; // 보라색
+        } else {
+          return { label: '기타학교', color: '#1ABC9C' }; // 청록색
+        }
+      }
+      if (code === 'AC5') {
+        return { label: '학원', color: '#E74C3C' };       // 빨간색
+      }
+      return { label: '교육기관', color: '#7F8C8D' };
+    }
+
+    // 5. 색상별 커스텀 마커 이미지를 생성하는 함수 (SVG 활용)
+    function createColoredMarkerImage(color) {
+      const svg = `
+        <svg xmlns="http://www.w3.org/2000/svg" width="28" height="36" viewBox="0 0 28 36">
+          <path fill="${color}" stroke="#ffffff" stroke-width="2" d="M14 1C6.8 1 1 6.8 1 14c0 9.5 13 20.5 13 20.5S27 23.5 27 14C27 6.8 21.2 1 14 1z"/>
+          <circle cx="14" cy="14" r="5" fill="#ffffff"/>
+        </svg>`;
+      const svgUrl = 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(svg);
+      const imageSize = new kakao.maps.Size(28, 36);
+      const imageOption = { offset: new kakao.maps.Point(14, 36) };
+      return new kakao.maps.MarkerImage(svgUrl, imageSize, imageOption);
+    }
+
+    // 6. 브라우저에서 현재 위치 권한을 받아 지도를 이동시키는 함수
+    function moveToCurrentLocation() {
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+          function (position) {
+            const lat = position.coords.latitude;
+            const lng = position.coords.longitude;
+            currentCenter = new kakao.maps.LatLng(lat, lng);
+
+            map.setCenter(currentCenter);
+            searchAroundCenter(); // 현재 위치 주변 교육 인프라 탐색 실행
+          },
+          function (error) {
+            alert('위치 권한을 허용하지 않아 기본 위치(서울시청)를 중심으로 탐색합니다.');
+            searchAroundCenter();
+          }
+        );
+      } else {
+        alert('이 브라우저에서는 위치 기능을 지원하지 않습니다.');
+        searchAroundCenter();
+      }
+    }
+
+    // 7. 특정 카테고리 코드로 반경 내 모든 장소를 끝페이지까지 수집하는 함수
+    function fetchCategoryPlaces(categoryCode, center, radius) {
+      return new Promise(function (resolve) {
+        let collectedPlaces = [];
+
+        function searchPage(pageNumber) {
+          placesService.categorySearch(
+            categoryCode,
+            function (data, status, pagination) {
+              if (status === kakao.maps.services.Status.OK) {
+                collectedPlaces = collectedPlaces.concat(data);
+                // 다음 페이지가 있으면 계속 가져와서 총 개수를 정확히 파악
+                if (pagination.hasNextPage) {
+                  pagination.nextPage();
+                } else {
+                  resolve(collectedPlaces);
+                }
+              } else {
+                // 결과가 없거나 오류일 때 빈 배열 반환
+                resolve(collectedPlaces);
+              }
+            },
+            {
+              location: center,
+              radius: radius,
+              page: pageNumber,
+              sort: kakao.maps.services.SortBy.DISTANCE // 거리순 정렬
+            }
+          );
+        }
+
+        searchPage(1);
+      });
+    }
+
+    // 8. 기준 위치 주변의 교육 기관(PS3, SC4, AC5)을 모두 탐색하는 메인 함수
+    async function searchAroundCenter() {
+      const currentLevel = map.getLevel();
+      const radius = getRadiusByLevel(currentLevel);
+
+      // 기준점 마커와 반경 원을 지도에 표시
+      drawCenterAndCircle(currentCenter, radius);
+
+      // 상태바 텍스트 업데이트
+      updateStatusBar(currentLevel, radius, '탐색 중...');
+
+      // 어린이집/유치원(PS3), 학교(SC4), 학원(AC5) 동시에 검색
+      const [ps3Results, sc4Results, ac5Results] = await Promise.all([
+        fetchCategoryPlaces('PS3', currentCenter, radius),
+        fetchCategoryPlaces('SC4', currentCenter, radius),
+        fetchCategoryPlaces('AC5', currentCenter, radius)
+      ]);
+
+      // 제도권 교육기관(어린이집/유치원 + 학교) 합치기 및 거리순 정렬
+      publicEduList = ps3Results.concat(sc4Results).sort(function (a, b) {
+        return Number(a.distance) - Number(b.distance);
+      });
+
+      // 사교육 기관(학원) 저장
+      privateEduList = ac5Results;
+
+      // 탭 옆의 개수 배지 업데이트
+      document.getElementById('public-count').textContent = publicEduList.length;
+      document.getElementById('private-count').textContent = privateEduList.length;
+
+      // 상태바 최종 업데이트
+      const totalCount = publicEduList.length + privateEduList.length;
+      updateStatusBar(
+        currentLevel,
+        radius,
+        `총 ${totalCount}개 발견 (제도권 ${publicEduList.length}개 / 학원 ${privateEduList.length}개)`
+      );
+
+      // 현재 선택된 탭에 맞춰 마커와 리스트를 화면에 표시
+      renderPlaces();
+    }
+
+    // 9. 기준 위치 마커와 탐색 반경 원을 지도에 그리는 함수
+    function drawCenterAndCircle(center, radius) {
+      // 기존 기준 마커 제거 후 새로 생성
+      if (centerMarker) {
+        centerMarker.setMap(null);
+      }
+      centerMarker = new kakao.maps.Marker({
+        position: center,
+        map: map,
+        zIndex: 10
+      });
+
+      // 기존 반경 원 제거 후 새로 생성
+      if (radiusCircle) {
+        radiusCircle.setMap(null);
+      }
+      radiusCircle = new kakao.maps.Circle({
+        center: center,
+        radius: radius, // 미터(m) 단위의 반경
+        strokeWeight: 2,
+        strokeColor: '#007bff',
+        strokeOpacity: 0.8,
+        strokeStyle: 'dashed',
+        fillColor: '#007bff',
+        fillOpacity: 0.1
+      });
+      radiusCircle.setMap(map);
+    }
+
+    // 10. 상단 상태 안내바 텍스트 업데이트 함수
+    function updateStatusBar(level, radius, message) {
+      const radiusText = radius >= 1000 ? (radius / 1000) + 'km' : radius + 'm';
+      const modeText = isPickingMode ? '🎯 지도 클릭으로 위치 지정 모드' : '📍 선택된 중심 위치 기준';
+      document.getElementById('status-bar').innerHTML = `
+        <strong>${modeText}</strong><br>
+        현재 지도 레벨: <b>${level}레벨</b> (탐색 반경: <b>${radiusText}</b>)<br>
+        결과: <b>${message}</b>
+      `;
+    }
+
+    // 11. 선택된 탭(제도권 vs 사교육)에 맞게 지도 마커와 왼쪽 리스트를 출력하는 함수
+    function renderPlaces() {
+      // 기존 교육기관 마커들과 인포윈도우 지우기
+      infoWindow.close();
+      activeMarkers.forEach(function (marker) {
+        marker.setMap(null);
+      });
+      activeMarkers = [];
+
+      const listElement = document.getElementById('result-list');
+      listElement.innerHTML = '';
+
+      // 현재 활성화된 탭의 데이터 가져오기
+      const targetList = activeTab === 'PUBLIC' ? publicEduList : privateEduList;
+
+      if (targetList.length === 0) {
+        listElement.innerHTML = '<li style="padding:20px; text-align:center; color:#888;">현재 반경 내에 해당 교육 기관이 없습니다.<br>(- 버튼을 눌러 반경을 넓혀보세요!)</li>';
+        return;
+      }
+
+      targetList.forEach(function (place) {
+        const position = new kakao.maps.LatLng(place.y, place.x);
+        const typeInfo = getEduTypeInfo(place);
+
+        // 학교 종류별 색상 마커 생성 및 지도에 표시
+        const markerImage = createColoredMarkerImage(typeInfo.color);
+        const marker = new kakao.maps.Marker({
+          map: map,
+          position: position,
+          image: markerImage
+        });
+
+        activeMarkers.push(marker);
+
+        // 마커 클릭 시 인포윈도우 표시
+        kakao.maps.event.addListener(marker, 'click', function () {
+          showInfoWindow(marker, place, typeInfo);
+        });
+
+        // 왼쪽 결과 리스트 아이템 생성
+        const itemLi = document.createElement('li');
+        itemLi.className = 'place-item';
+        itemLi.innerHTML = `
+          <div class="place-title">
+            <span>${place.place_name}</span>
+            <span class="place-badge" style="background-color: ${typeInfo.color};">${typeInfo.label}</span>
+          </div>
+          <div class="place-address">${place.road_address_name || place.address_name}</div>
+          <div class="place-distance">중심으로부터 ${place.distance}m</div>
+        `;
+
+        // 리스트 아이템 클릭 시 해당 마커로 이동하고 인포윈도우 열기
+        itemLi.addEventListener('click', function () {
+          map.panTo(position);
+          showInfoWindow(marker, place, typeInfo);
+        });
+
+        listElement.appendChild(itemLi);
+      });
+    }
+
+    // 12. 마커 위에 장소 이름과 분류를 보여주는 인포윈도우 함수
+    function showInfoWindow(marker, place, typeInfo) {
+      const content = `
+        <div style="padding:8px 12px; font-size:13px; line-height:1.4; min-width:160px;">
+          <strong style="color:${typeInfo.color};">[${typeInfo.label}]</strong><br>
+          <b>${place.place_name}</b><br>
+          <span style="font-size:11px; color:#666;">거리: ${place.distance}m</span>
+        </div>
+      `;
+      infoWindow.setContent(content);
+      infoWindow.open(map, marker);
+    }
+
+    // 13. 탭 전환 함수 (제도권 교육기관 <-> 사교육 기관)
+    function switchTab(tabName) {
+      activeTab = tabName;
+
+      // 탭 버튼 스타일 변경
+      document.getElementById('tab-public').classList.toggle('active', tabName === 'PUBLIC');
+      document.getElementById('tab-private').classList.toggle('active', tabName === 'PRIVATE');
+
+      // 바뀐 탭에 맞춰 화면 다시 그리기
+      renderPlaces();
+    }
+
+    // 14. 각종 버튼 및 지도 이벤트 리스너 등록 함수
+    function setupEventListeners() {
+      // + 버튼: 지도 확대 레벨 1 낮추기 (더 가까이 보기)
+      document.getElementById('zoom-in-btn').addEventListener('click', function () {
+        const currentLevel = map.getLevel();
+        if (currentLevel > 1) {
+          map.setLevel(currentLevel - 1);
+        }
+      });
+
+      // - 버튼: 지도 확대 레벨 1 높이기 (더 넓게 보기)
+      document.getElementById('zoom-out-btn').addEventListener('click', function () {
+        const currentLevel = map.getLevel();
+        map.setLevel(currentLevel + 1);
+      });
+
+      // 지도 레벨이 바뀌면 바뀐 레벨의 반경으로 다시 탐색
+      kakao.maps.event.addListener(map, 'zoom_changed', function () {
+        searchAroundCenter();
+      });
+
+      // '내 위치 주변 파악' 버튼 클릭
+      const currentLocBtn = document.getElementById('current-loc-btn');
+      const pickLocBtn = document.getElementById('pick-loc-btn');
+
+      currentLocBtn.addEventListener('click', function () {
+        isPickingMode = false;
+        currentLocBtn.classList.add('active');
+        pickLocBtn.classList.remove('active');
+        moveToCurrentLocation();
+      });
+
+      // '위치 지정하기' 버튼 클릭
+      pickLocBtn.addEventListener('click', function () {
+        isPickingMode = !isPickingMode;
+        pickLocBtn.classList.toggle('active', isPickingMode);
+        currentLocBtn.classList.toggle('active', !isPickingMode);
+
+        if (isPickingMode) {
+          alert('지도에서 원하는 위치를 클릭하면 그 주변의 교육 기관을 탐색합니다!');
+        }
+        updateStatusBar(map.getLevel(), getRadiusByLevel(map.getLevel()), '지도를 클릭해 위치를 지정하세요.');
+      });
+
+      // 지도를 클릭했을 때 ('위치 지정하기'가 켜져 있으면 클릭한 곳을 중심으로 재탐색)
+      kakao.maps.event.addListener(map, 'click', function (mouseEvent) {
+        if (isPickingMode) {
+          currentCenter = mouseEvent.latLng;
+          map.panTo(currentCenter);
+          searchAroundCenter();
+        }
+      });
+
+      // 키워드 검색으로 원하는 동네/장소로 빠르게 이동하는 기능
+      const searchBtn = document.getElementById('search-btn');
+      const keywordInput = document.getElementById('keyword-input');
+
+      function searchLocationByKeyword() {
+        const keyword = keywordInput.value.trim();
+        if (!keyword) {
+          alert('이동할 지역이나 장소 이름을 입력해주세요!');
+          return;
+        }
+        placesService.keywordSearch(keyword, function (data, status) {
+          if (status === kakao.maps.services.Status.OK) {
+            const firstPlace = data[0];
+            currentCenter = new kakao.maps.LatLng(firstPlace.y, firstPlace.x);
+            map.setCenter(currentCenter);
+            searchAroundCenter();
+          } else {
+            alert('검색 결과가 없습니다.');
+          }
+        });
+      }
+
+      searchBtn.addEventListener('click', searchLocationByKeyword);
+      keywordInput.addEventListener('keydown', function (event) {
+        if (event.key === 'Enter') {
+          searchLocationByKeyword();
+        }
+      });
+    }
+  </script>
+</body>
+</html>
